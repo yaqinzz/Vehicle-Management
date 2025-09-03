@@ -94,8 +94,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           # Support both key-based and password-based auth. Provide either SSH_PRIVATE_KEY or SSH_PASSWORD as repo secret.
-          #   key: ${{ secrets.SSH_PRIVATE_KEY }}
-          password: ${{ secrets.SSH_PASSWORD }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
             set -e
