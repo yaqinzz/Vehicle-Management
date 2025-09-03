@@ -10,7 +10,7 @@ import { generalLimiter } from './middlewares/rateLimiting.middleware.js'
 // Swagger / OpenAPI
 import fs from 'fs'
 import yaml from 'js-yaml'
-import swaggerUi from 'swagger-ui-express'
+import swaggerUi, { type JsonObject } from 'swagger-ui-express'
 
 const app = express()
 
@@ -37,12 +37,12 @@ app.use(cookieParser())
 try {
 	const openapiPath = new URL('../openapi.yaml', import.meta.url)
 	const openapiContent = fs.readFileSync(openapiPath, 'utf8')
-	const openapiDocument = yaml.load(openapiContent)
+	const openapiDocument = yaml.load(openapiContent) as JsonObject
 	app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapiDocument))
 } catch (err) {
 	// If docs fail to load, don't crash the server; log and continue
 	// eslint-disable-next-line no-console
-	console.warn('⚠️  Could not load OpenAPI docs:', err && err.message ? err.message : err)
+	console.warn('⚠️  Could not load OpenAPI docs:', err && (err as Error).message ? (err as Error).message : err)
 }
 
 app.use('/api', routes)
