@@ -7,6 +7,11 @@ import { errorHandler } from './middlewares/error.middleware.js'
 import { requestLogger, errorLogger } from './middlewares/logger.middleware.js'
 import { generalLimiter } from './middlewares/rateLimiting.middleware.js'
 
+// Swagger / OpenAPI
+import fs from 'fs'
+import yaml from 'js-yaml'
+import swaggerUi from 'swagger-ui-express'
+
 const app = express()
 
 // Request logging middleware (should be early in the chain)
@@ -28,6 +33,18 @@ app.use(express.json())
 app.use(cookieParser())
 
 // Routes
+// Serve API docs from /docs (OpenAPI/Swagger)
+try {
+	const openapiPath = new URL('../openapi.yaml', import.meta.url)
+	const openapiContent = fs.readFileSync(openapiPath, 'utf8')
+	const openapiDocument = yaml.load(openapiContent)
+	app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapiDocument))
+} catch (err) {
+	// If docs fail to load, don't crash the server; log and continue
+	// eslint-disable-next-line no-console
+	console.warn('⚠️  Could not load OpenAPI docs:', err && err.message ? err.message : err)
+}
+
 app.use('/api', routes)
 app.get('/', (req, res) => {
 	res.send('Vehicle Management System API is running')
