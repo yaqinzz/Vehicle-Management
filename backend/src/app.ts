@@ -42,7 +42,10 @@ try {
 } catch (err) {
 	// If docs fail to load, don't crash the server; log and continue
 	// eslint-disable-next-line no-console
-	console.warn('⚠️  Could not load OpenAPI docs:', err && (err as Error).message ? (err as Error).message : err)
+	console.warn(
+		'⚠️  Could not load OpenAPI docs:',
+		err && (err as Error).message ? (err as Error).message : err
+	)
 }
 
 app.use('/api', routes)
