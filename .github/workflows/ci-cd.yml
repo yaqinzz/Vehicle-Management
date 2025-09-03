@@ -102,8 +102,3 @@ jobs:
             # pull new images and recreate services
             docker-compose pull || true
             docker-compose up -d --remove-orphans
-
-# Secrets required (set these in repository Settings > Secrets):
-# DOCKERHUB_USERNAME, DOCKERHUB_TOKEN
-# SSH_HOST, SSH_USER, SSH_PRIVATE_KEY, SSH_PORT (optional)
-# On the VPS, have a docker-compose.yml in DEPLOY_PATH that references the images pushed above
