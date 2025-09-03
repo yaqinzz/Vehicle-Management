@@ -88,17 +88,113 @@ jobs:
     needs: docker-build-and-push
     if: github.ref == 'refs/heads/main'
     steps:
-      - name: Deploy via SSH (docker-compose pull & up)
+      - name: Prepare deploy files
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          PGADMIN_EMAIL: ${{ secrets.PGADMIN_EMAIL }}
+          PGADMIN_PASSWORD: ${{ secrets.PGADMIN_PASSWORD }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+          LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
+        run: |
+          # create deploy env file with secrets (kept only in runner and included in tar)
+          mkdir -p deploy
+          echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" > deploy/.deploy.env
+          echo "PGADMIN_EMAIL=$PGADMIN_EMAIL" >> deploy/.deploy.env
+          echo "PGADMIN_PASSWORD=$PGADMIN_PASSWORD" >> deploy/.deploy.env
+          echo "DOCKERHUB_USERNAME=$DOCKERHUB_USERNAME" >> deploy/.deploy.env
+          echo "DOMAIN=$DOMAIN" >> deploy/.deploy.env
+          echo "LETSENCRYPT_EMAIL=$LETSENCRYPT_EMAIL" >> deploy/.deploy.env
+          tar -czf deploy_artifacts.tar.gz -C deploy docker-compose.prod.yml nginx.conf backend.env.example .deploy.env || true
+
+      - name: Upload deploy artifacts to VPS
+        uses: appleboy/scp-action@v0.1.2
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT }}
+          source: 'deploy_artifacts.tar.gz'
+          target: '/home/${{ secrets.SSH_USER }}/vehicle-deploy/'
+
+      - name: Ensure Docker is installed on VPS
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ secrets.SSH_PORT }}
           script: |
             set -e
-            # go to path containing docker-compose.yml on the server
-            cd ${DEPLOY_PATH:-$HOME} || exit 1
-            # pull new images and recreate services
-            docker-compose pull || true
-            docker-compose up -d --remove-orphans
+            # If docker already installed, show versions and exit
+            if command -v docker >/dev/null 2>&1; then
+              echo "Docker is already installed"
+              docker --version || true
+              docker compose version || true
+              exit 0
+            fi
+
+            # Check for passwordless sudo
+            if ! sudo -n true 2>/dev/null; then
+              echo "ERROR: user does not have passwordless sudo. Please grant '${{ secrets.SSH_USER }}' passwordless sudo or provide an account with sudo privileges."
+              exit 1
+            fi
+
+            echo "Installing Docker Engine and Compose plugin..."
+            sudo apt-get update
+            sudo apt-get install -y ca-certificates curl gnupg lsb-release
+            sudo mkdir -p /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            sudo chmod a+r /etc/apt/keyrings/docker.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+            sudo apt-get update
+            sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+            sudo systemctl enable --now docker
+            # add user to docker group (may require relogin)
+            sudo usermod -aG docker $USER || true
+            echo "Docker installation complete"
+
+      - name: Extract and deploy on VPS
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            set -e
+            DEPLOY_DIR=/home/${{ secrets.SSH_USER }}/vehicle-deploy
+            mkdir -p "$DEPLOY_DIR"
+            cd "$DEPLOY_DIR"
+            tar -xzf deploy_artifacts.tar.gz || true
+            # source deploy env variables provided by runner
+            if [ -f ./deploy/.deploy.env ]; then
+              set -o allexport
+              source ./deploy/.deploy.env
+              set +o allexport
+            fi
+            # write .env for docker-compose variable substitution
+            echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" > .env
+            echo "PGADMIN_EMAIL=$PGADMIN_EMAIL" >> .env
+            echo "PGADMIN_PASSWORD=$PGADMIN_PASSWORD" >> .env
+            echo "DOCKERHUB_USERNAME=$DOCKERHUB_USERNAME" >> .env
+            echo "DOMAIN=$DOMAIN" >> .env
+            echo "LETSENCRYPT_EMAIL=$LETSENCRYPT_EMAIL" >> .env
+            # pull images
+            docker compose pull || true
+            # replace domain placeholder in nginx.conf using DOMAIN from .env
+            if [ -n "$DOMAIN" ]; then
+              sed -i "s/__DOMAIN__/$DOMAIN/g" nginx.conf || true
+            fi
+            # recreate services
+            docker compose up -d --remove-orphans
+            # Obtain TLS certificates with certbot (webroot) if DOMAIN provided
+            if [ -n "$DOMAIN" ]; then
+              echo "Requesting/renewing certificates for $DOMAIN"
+              docker compose run --rm certbot certonly --webroot -w /var/www/certbot -d "$DOMAIN" --email "$LETSENCRYPT_EMAIL" --agree-tos --no-eff-email --non-interactive || true
+              # reload nginx to pick up certs
+              docker compose exec nginx nginx -s reload || true
+            fi

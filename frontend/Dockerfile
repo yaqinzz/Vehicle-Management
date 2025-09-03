@@ -1,19 +1,17 @@
-FROM node:20-alpine AS deps
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-
 FROM node:20-alpine AS builder
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+
+# install deps
+COPY package*.json ./
+RUN npm ci --production=false
+
+# build
 COPY . .
 RUN npm run build
 
-FROM node:20-alpine
-WORKDIR /app
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
+FROM nginx:stable-alpine AS runner
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-EXPOSE 5173
+EXPOSE 80
 
-CMD ["npx", "vite", "preview", "--port", "5173", "--strictPort"]
+CMD ["nginx", "-g", "daemon off;"]
