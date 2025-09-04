@@ -180,18 +180,18 @@ jobs:
             echo "DOCKERHUB_USERNAME=$DOCKERHUB_USERNAME" >> .env
             echo "DOMAIN=$DOMAIN" >> .env
             echo "LETSENCRYPT_EMAIL=$LETSENCRYPT_EMAIL" >> .env
-            # pull images
-            docker compose pull || true
+            # pull images using production compose file
+            docker compose -f docker-compose.prod.yml pull || true
             # replace domain placeholder in nginx.conf using DOMAIN from .env
             if [ -n "$DOMAIN" ]; then
               sed -i "s/__DOMAIN__/$DOMAIN/g" nginx.conf || true
             fi
             # recreate services
-            docker compose up -d --remove-orphans
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
             # Obtain TLS certificates with certbot (webroot) if DOMAIN provided
             if [ -n "$DOMAIN" ]; then
               echo "Requesting/renewing certificates for $DOMAIN"
-              docker compose run --rm certbot certonly --webroot -w /var/www/certbot -d "$DOMAIN" --email "$LETSENCRYPT_EMAIL" --agree-tos --no-eff-email --non-interactive || true
+              docker compose -f docker-compose.prod.yml run --rm certbot certonly --webroot -w /var/www/certbot -d "$DOMAIN" --email "$LETSENCRYPT_EMAIL" --agree-tos --no-eff-email --non-interactive || true
               # reload nginx to pick up certs
-              docker compose exec nginx nginx -s reload || true
+              docker compose -f docker-compose.prod.yml exec nginx nginx -s reload || true
             fi
