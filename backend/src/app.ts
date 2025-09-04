@@ -5,7 +5,6 @@ import helmet from 'helmet'
 import routes from './routes/index.js'
 import { errorHandler } from './middlewares/error.middleware.js'
 import { requestLogger, errorLogger } from './middlewares/logger.middleware.js'
-import { generalLimiter } from './middlewares/rateLimiting.middleware.js'
 
 // Swagger / OpenAPI
 import fs from 'fs'
@@ -14,7 +13,7 @@ import swaggerUi, { type JsonObject } from 'swagger-ui-express'
 
 const app = express()
 
-// Trust proxy - important for rate limiting and security behind reverse proxy
+// Trust proxy - important for security behind reverse proxy
 app.set('trust proxy', 1)
 
 // Request logging middleware (should be early in the chain)
@@ -28,9 +27,6 @@ app.use(
 		credentials: true,
 	})
 )
-
-// Rate limiting - general protection for all routes
-app.use(generalLimiter)
 
 app.use(express.json())
 app.use(cookieParser())
