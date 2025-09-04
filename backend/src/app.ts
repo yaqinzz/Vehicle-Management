@@ -14,6 +14,9 @@ import swaggerUi, { type JsonObject } from 'swagger-ui-express'
 
 const app = express()
 
+// Trust proxy - important for rate limiting and security behind reverse proxy
+app.set('trust proxy', 1)
+
 // Request logging middleware (should be early in the chain)
 app.use(requestLogger)
 
