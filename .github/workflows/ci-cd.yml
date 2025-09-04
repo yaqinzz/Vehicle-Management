@@ -216,6 +216,15 @@ jobs:
             fi
             # recreate services
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            # Wait for postgres to be ready
+            echo "Waiting for database to be ready..."
+            sleep 15
+            # Run database migrations
+            echo "Running database migrations..."
+            docker compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy || true
+            # Run database seeding
+            echo "Running database seeding..."
+            docker compose -f docker-compose.prod.yml exec backend npm run seed || true
             # Wait for nginx to be ready
             sleep 10
             # Obtain TLS certificates with certbot (webroot) if DOMAIN provided
