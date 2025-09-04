@@ -88,11 +88,13 @@ jobs:
     needs: docker-build-and-push
     if: github.ref == 'refs/heads/main'
     steps:
+      - uses: actions/checkout@v4
+
       - name: Prepare deploy files
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           PGADMIN_EMAIL: ${{ secrets.PGADMIN_EMAIL }}
-          PGLADMIN_PASSWORD: ${{ secrets.PGADMIN_PASSWORD }}
+          PGADMIN_PASSWORD: ${{ secrets.PGADMIN_PASSWORD }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOMAIN: ${{ secrets.DOMAIN }}
           LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
@@ -104,8 +106,12 @@ jobs:
           echo "DOCKERHUB_USERNAME=$DOCKERHUB_USERNAME" >> .deploy.env
           echo "DOMAIN=$DOMAIN" >> .deploy.env
           echo "LETSENCRYPT_EMAIL=$LETSENCRYPT_EMAIL" >> .deploy.env
-          # create tar with deploy files from deploy/ folder and .deploy.env from root
-          tar -czf deploy_artifacts.tar.gz deploy/docker-compose.prod.yml deploy/nginx.conf deploy/backend.env.example .deploy.env
+          # copy deploy files to root for easier tar creation
+          cp deploy/docker-compose.prod.yml .
+          cp deploy/nginx.conf .
+          cp deploy/backend.env.example .
+          # create tar with all files in root
+          tar -czf deploy_artifacts.tar.gz docker-compose.prod.yml nginx.conf backend.env.example .deploy.env
           # verify tar contents
           echo "Tar contents:"
           tar -tzf deploy_artifacts.tar.gz
