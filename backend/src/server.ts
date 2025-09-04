@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 4000
 
 app.listen(PORT, () => {
 	logger.info(`🚀 Server running on http://localhost:${PORT}`)
-	logger.info(`📚 API Documentation: http://localhost:${PORT}/api`)
+	logger.info(`📚 API Documentation: http://localhost:${PORT}/docs`)
 	logger.info(`📊 Environment: ${process.env.NODE_ENV || 'development'}`)
 })
 

@@ -204,11 +204,14 @@ jobs:
             echo "DOCKERHUB_USERNAME=$DOCKERHUB_USERNAME" >> .env
             echo "DOMAIN=$DOMAIN" >> .env
             echo "LETSENCRYPT_EMAIL=$LETSENCRYPT_EMAIL" >> .env
+            # create backend.env from backend.env.example with actual values
+            cp backend.env.example backend.env
             # pull images using production compose file
             docker compose -f docker-compose.prod.yml pull || true
-            # replace domain placeholder in nginx.conf using DOMAIN from .env
+            # replace domain placeholder in nginx.conf using DOMAIN from .env (escape special chars)
             if [ -n "$DOMAIN" ]; then
-              sed -i "s/__DOMAIN__/$DOMAIN/g" nginx.conf || true
+              # Use | as delimiter to avoid issues with dots in IP addresses
+              sed -i "s|__DOMAIN__|$DOMAIN|g" nginx.conf || true
             fi
             # recreate services
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
