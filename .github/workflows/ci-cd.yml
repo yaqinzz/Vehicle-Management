@@ -96,23 +96,18 @@ jobs:
           PGADMIN_EMAIL: ${{ secrets.PGADMIN_EMAIL }}
           PGADMIN_PASSWORD: ${{ secrets.PGADMIN_PASSWORD }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOMAIN: ${{ secrets.DOMAIN }}
-          LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
         run: |
           # create deploy env file with secrets 
           echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" > .deploy.env
           echo "PGADMIN_EMAIL=$PGADMIN_EMAIL" >> .deploy.env
           echo "PGADMIN_PASSWORD=$PGADMIN_PASSWORD" >> .deploy.env
           echo "DOCKERHUB_USERNAME=$DOCKERHUB_USERNAME" >> .deploy.env
-          echo "DOMAIN=$DOMAIN" >> .deploy.env
-          echo "LETSENCRYPT_EMAIL=$LETSENCRYPT_EMAIL" >> .deploy.env
           # copy deploy files to root for easier tar creation
           cp deploy/docker-compose.prod.yml .
           cp deploy/nginx.conf .
           cp deploy/backend.env.example .
-          cp deploy/enable-https.sh .
           # create tar with all files in root
-          tar -czf deploy_artifacts.tar.gz docker-compose.prod.yml nginx.conf backend.env.example enable-https.sh .deploy.env
+          tar -czf deploy_artifacts.tar.gz docker-compose.prod.yml nginx.conf backend.env.example .deploy.env
           # verify tar contents
           echo "Tar contents:"
           tar -tzf deploy_artifacts.tar.gz
@@ -203,17 +198,10 @@ jobs:
             echo "PGADMIN_EMAIL=$PGADMIN_EMAIL" >> .env
             echo "PGADMIN_PASSWORD=$PGADMIN_PASSWORD" >> .env
             echo "DOCKERHUB_USERNAME=$DOCKERHUB_USERNAME" >> .env
-            echo "DOMAIN=$DOMAIN" >> .env
-            echo "LETSENCRYPT_EMAIL=$LETSENCRYPT_EMAIL" >> .env
             # create backend.env from backend.env.example with actual values
             cp backend.env.example backend.env
             # pull images using production compose file
             docker compose -f docker-compose.prod.yml pull || true
-            # replace domain placeholder in nginx.conf using DOMAIN from .env (escape special chars)
-            if [ -n "$DOMAIN" ]; then
-              # Use | as delimiter to avoid issues with dots in IP addresses
-              sed -i "s|__DOMAIN__|$DOMAIN|g" nginx.conf || true
-            fi
             # recreate services
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
             # Wait for postgres to be ready
@@ -225,18 +213,6 @@ jobs:
             # Run database seeding
             echo "Running database seeding..."
             docker compose -f docker-compose.prod.yml exec backend npm run seed || true
-            # Wait for nginx to be ready
-            sleep 10
-            # Obtain TLS certificates with certbot (webroot) if DOMAIN provided
-            if [ -n "$DOMAIN" ]; then
-              echo "Requesting/renewing certificates for $DOMAIN"
-              docker compose -f docker-compose.prod.yml run --rm certbot certonly --webroot -w /var/www/certbot -d "$DOMAIN" --email "$LETSENCRYPT_EMAIL" --agree-tos --no-eff-email --non-interactive || true
-              # Enable HTTPS if certificate was obtained
-              if [ -d "/var/lib/docker/volumes/vehicle-deploy_letsencrypt/_data/live/$DOMAIN" ] || docker compose -f docker-compose.prod.yml exec nginx ls /etc/letsencrypt/live/$DOMAIN >/dev/null 2>&1; then
-                echo "Certificate obtained, enabling HTTPS..."
-                chmod +x enable-https.sh
-                ./enable-https.sh "$DOMAIN"
-              else
-                echo "Certificate not obtained, keeping HTTP only"
-              fi
-            fi
+            # Show container status
+            echo "Deployment completed! Container status:"
+            docker compose -f docker-compose.prod.yml ps
