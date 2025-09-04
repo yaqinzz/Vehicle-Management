@@ -167,10 +167,12 @@ jobs:
             mkdir -p "$DEPLOY_DIR"
             cd "$DEPLOY_DIR"
             tar -xzf deploy_artifacts.tar.gz || true
+            # list files for debugging
+            ls -la
             # source deploy env variables provided by runner
-            if [ -f ./deploy/.deploy.env ]; then
+            if [ -f ./.deploy.env ]; then
               set -o allexport
-              source ./deploy/.deploy.env
+              source ./.deploy.env
               set +o allexport
             fi
             # write .env for docker-compose variable substitution
