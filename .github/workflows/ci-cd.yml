@@ -110,8 +110,9 @@ jobs:
           cp deploy/docker-compose.prod.yml .
           cp deploy/nginx.conf .
           cp deploy/backend.env.example .
+          cp deploy/enable-https.sh .
           # create tar with all files in root
-          tar -czf deploy_artifacts.tar.gz docker-compose.prod.yml nginx.conf backend.env.example .deploy.env
+          tar -czf deploy_artifacts.tar.gz docker-compose.prod.yml nginx.conf backend.env.example enable-https.sh .deploy.env
           # verify tar contents
           echo "Tar contents:"
           tar -tzf deploy_artifacts.tar.gz
@@ -215,10 +216,18 @@ jobs:
             fi
             # recreate services
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            # Wait for nginx to be ready
+            sleep 10
             # Obtain TLS certificates with certbot (webroot) if DOMAIN provided
             if [ -n "$DOMAIN" ]; then
               echo "Requesting/renewing certificates for $DOMAIN"
               docker compose -f docker-compose.prod.yml run --rm certbot certonly --webroot -w /var/www/certbot -d "$DOMAIN" --email "$LETSENCRYPT_EMAIL" --agree-tos --no-eff-email --non-interactive || true
-              # reload nginx to pick up certs
-              docker compose -f docker-compose.prod.yml exec nginx nginx -s reload || true
+              # Enable HTTPS if certificate was obtained
+              if [ -d "/var/lib/docker/volumes/vehicle-deploy_letsencrypt/_data/live/$DOMAIN" ] || docker compose -f docker-compose.prod.yml exec nginx ls /etc/letsencrypt/live/$DOMAIN >/dev/null 2>&1; then
+                echo "Certificate obtained, enabling HTTPS..."
+                chmod +x enable-https.sh
+                ./enable-https.sh "$DOMAIN"
+              else
+                echo "Certificate not obtained, keeping HTTP only"
+              fi
             fi
