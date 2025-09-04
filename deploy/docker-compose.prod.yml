@@ -18,12 +18,16 @@ services:
       - ./backend.env
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/vehicle_db
+    ports:
+      - '4001:4000'
     depends_on:
       - postgres
 
   frontend:
     image: ${DOCKERHUB_USERNAME}/vehicle-management-frontend:latest
     restart: always
+    ports:
+      - '3001:80'
 
   pgadmin:
     image: dpage/pgadmin4:7
@@ -35,17 +39,6 @@ services:
       - '8080:80'
     depends_on:
       - postgres
-
-  nginx:
-    image: nginx:stable-alpine
-    restart: always
-    volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-    ports:
-      - '80:80'
-    depends_on:
-      - frontend
-      - backend
 
 volumes:
   db-data:
