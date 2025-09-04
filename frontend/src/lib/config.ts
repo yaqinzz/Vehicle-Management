@@ -2,7 +2,7 @@
 
 export const config = {
 	// API Configuration
-	apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api',
+	apiBaseUrl: import.meta.env.VITE_API_BASE_URL || '/api',
 
 	// Application Configuration
 	appName: import.meta.env.VITE_APP_NAME || 'Vehicle Management System',
