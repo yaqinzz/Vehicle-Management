@@ -92,20 +92,23 @@ jobs:
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           PGADMIN_EMAIL: ${{ secrets.PGADMIN_EMAIL }}
-          PGADMIN_PASSWORD: ${{ secrets.PGADMIN_PASSWORD }}
+          PGLADMIN_PASSWORD: ${{ secrets.PGADMIN_PASSWORD }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOMAIN: ${{ secrets.DOMAIN }}
           LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
         run: |
-          # create deploy env file with secrets (kept only in runner and included in tar)
-          mkdir -p deploy
-          echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" > deploy/.deploy.env
-          echo "PGADMIN_EMAIL=$PGADMIN_EMAIL" >> deploy/.deploy.env
-          echo "PGADMIN_PASSWORD=$PGADMIN_PASSWORD" >> deploy/.deploy.env
-          echo "DOCKERHUB_USERNAME=$DOCKERHUB_USERNAME" >> deploy/.deploy.env
-          echo "DOMAIN=$DOMAIN" >> deploy/.deploy.env
-          echo "LETSENCRYPT_EMAIL=$LETSENCRYPT_EMAIL" >> deploy/.deploy.env
-          tar -czf deploy_artifacts.tar.gz -C deploy docker-compose.prod.yml nginx.conf backend.env.example .deploy.env || true
+          # create deploy env file with secrets 
+          echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" > .deploy.env
+          echo "PGADMIN_EMAIL=$PGADMIN_EMAIL" >> .deploy.env
+          echo "PGADMIN_PASSWORD=$PGADMIN_PASSWORD" >> .deploy.env
+          echo "DOCKERHUB_USERNAME=$DOCKERHUB_USERNAME" >> .deploy.env
+          echo "DOMAIN=$DOMAIN" >> .deploy.env
+          echo "LETSENCRYPT_EMAIL=$LETSENCRYPT_EMAIL" >> .deploy.env
+          # create tar with deploy files from deploy/ folder and .deploy.env from root
+          tar -czf deploy_artifacts.tar.gz deploy/docker-compose.prod.yml deploy/nginx.conf deploy/backend.env.example .deploy.env
+          # verify tar contents
+          echo "Tar contents:"
+          tar -tzf deploy_artifacts.tar.gz
 
       - name: Upload deploy artifacts to VPS
         uses: appleboy/scp-action@v0.1.2
@@ -167,8 +170,21 @@ jobs:
             mkdir -p "$DEPLOY_DIR"
             cd "$DEPLOY_DIR"
             tar -xzf deploy_artifacts.tar.gz || true
+            # move files from deploy/ subfolder to current directory
+            if [ -d deploy ]; then
+              mv deploy/* .
+              rmdir deploy
+            fi
             # list files for debugging
+            echo "Files after extraction and reorganization:"
             ls -la
+            # verify required files exist
+            if [ ! -f docker-compose.prod.yml ]; then
+              echo "ERROR: docker-compose.prod.yml not found!"
+              echo "Available files:"
+              ls -la
+              exit 1
+            fi
             # source deploy env variables provided by runner
             if [ -f ./.deploy.env ]; then
               set -o allexport
