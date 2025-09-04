@@ -5,6 +5,7 @@ WORKDIR /app
 COPY package*.json tsconfig.json ./
 COPY prisma ./prisma
 COPY src ./src
+COPY openapi.yaml ./
 
 RUN npm ci
 
@@ -19,6 +20,7 @@ ENV NODE_ENV=production
 # Copy runtime artifacts
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/openapi.yaml ./
 COPY package*.json ./
 
 EXPOSE 4000
